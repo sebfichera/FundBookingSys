@@ -31,8 +31,8 @@ CREATE TABLE IF NOT EXISTS prenotazioni (
     user_id INTEGER NOT NULL,
     classe_id INTEGER NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES utenti(id),
-    FOREIGN KEY (classe_id) REFERENCES classi(id)
+    FOREIGN KEY (user_id) REFERENCES utenti(id) ON DELETE CASCADE,
+    FOREIGN KEY (classe_id) REFERENCES classi(id) ON DELETE CASCADE
 );
 
 -- Un utente non può prenotare due volte la stessa classe

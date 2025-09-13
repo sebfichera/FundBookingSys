@@ -3,7 +3,11 @@ import sqlite3
 import os
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
+import smtplib
+from email.message import EmailMessage
+from contextlib import contextmanager
 
+# ----------------- CONFIG -----------------
 app = Flask(__name__)
 app.secret_key = "bjj_super_secret_key"
 
@@ -12,24 +16,27 @@ SCHEMA_FILE = "schema.sql"
 MIN_ISCRITTI = 5
 
 # ----------------- DB -----------------
-def get_db():
-    conn = sqlite3.connect(DB_FILE)
+@contextmanager
+def get_db_conn():
+    conn = sqlite3.connect(DB_FILE, timeout=10, check_same_thread=False)
     conn.row_factory = sqlite3.Row
-    return conn
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 def init_db_if_needed():
     if not os.path.exists(DB_FILE):
         with open(SCHEMA_FILE, "r", encoding="utf-8") as f:
             schema = f.read()
-        conn = sqlite3.connect(DB_FILE)
-        conn.executescript(schema)
-        conn.commit()
-        conn.close()
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.executescript(schema)
+            conn.commit()
         print("✅ Database creato e inizializzato!")
 
 init_db_if_needed()
 
-# ----------------- Decorators -----------------
+# ----------------- DECORATOR -----------------
 def user_login_required(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
@@ -53,59 +60,49 @@ def admin_required(f):
 # ----------------- HOME -----------------
 @app.route("/")
 def home():
-    db = get_db()
-    classi = db.execute("SELECT * FROM classi ORDER BY data ASC, ora ASC").fetchall()
-    prenotazioni_count = {}
-    for c in classi:
-        count = db.execute(
-            "SELECT COUNT(*) AS n FROM prenotazioni WHERE classe_id=?",
-            (c["id"],)
-        ).fetchone()["n"]
-        prenotazioni_count[c["id"]] = count
+    with get_db_conn() as db:
+        classi = db.execute("SELECT * FROM classi ORDER BY data ASC, ora ASC").fetchall()
+        prenotazioni_count = {c["id"]: db.execute(
+            "SELECT COUNT(*) AS n FROM prenotazioni WHERE classe_id=?", (c["id"],)
+        ).fetchone()["n"] for c in classi}
 
-    return render_template(
-        "home.html",
-        classi=classi,
-        prenotazioni=prenotazioni_count,
-        user_id=session.get("user_id"),
-        user_status=session.get("user_status"),
-    )
+    return render_template("home.html",
+                           classi=classi,
+                           prenotazioni=prenotazioni_count,
+                           user_id=session.get("user_id"),
+                           user_status=session.get("user_status"))
 
 # ----------------- PRENOTAZIONE -----------------
 @app.route("/prenota/<int:classe_id>", methods=["POST"])
 @user_login_required
 def prenota(classe_id):
     user_id = session["user_id"]
-    db = get_db()
+    with get_db_conn() as db:
+        count = db.execute(
+            "SELECT COUNT(*) AS n FROM prenotazioni WHERE classe_id=?", (classe_id,)
+        ).fetchone()["n"]
+        row = db.execute("SELECT max_posti FROM classi WHERE id=?", (classe_id,)).fetchone()
+        if not row:
+            flash("Classe inesistente.")
+            return redirect(url_for("home"))
+        max_posti = row["max_posti"]
 
-    # posti occupati e max
-    count = db.execute("SELECT COUNT(*) AS n FROM prenotazioni WHERE classe_id=?",
-                       (classe_id,)).fetchone()["n"]
-    row = db.execute("SELECT max_posti FROM classi WHERE id=?", (classe_id,)).fetchone()
-    if not row:
-        flash("Classe inesistente.")
-        return redirect(url_for("home"))
-    max_posti = row["max_posti"]
+        already = db.execute(
+            "SELECT 1 FROM prenotazioni WHERE user_id=? AND classe_id=?", (user_id, classe_id)
+        ).fetchone()
+        if already:
+            flash("Hai già una prenotazione per questa classe.")
+            return redirect(url_for("home"))
 
-    # già prenotato?
-    already = db.execute(
-        "SELECT 1 FROM prenotazioni WHERE user_id=? AND classe_id=?",
-        (user_id, classe_id)
-    ).fetchone()
-    if already:
-        flash("Hai già una prenotazione per questa classe.")
-        return redirect(url_for("home"))
+        if count >= max_posti:
+            flash("Classe piena!")
+            return redirect(url_for("home"))
 
-    if count >= max_posti:
-        flash("Classe piena!")
-        return redirect(url_for("home"))
-
-    db.execute(
-        "INSERT INTO prenotazioni (user_id, classe_id) VALUES (?, ?)",
-        (user_id, classe_id)
-    )
-    db.commit()
-    flash("✅ Prenotazione effettuata!")
+        db.execute(
+            "INSERT INTO prenotazioni (user_id, classe_id) VALUES (?, ?)", (user_id, classe_id)
+        )
+        db.commit()
+        flash("✅ Prenotazione effettuata!")
     return redirect(url_for("home"))
 
 # ----------------- REGISTRAZIONE UTENTE -----------------
@@ -132,25 +129,21 @@ def register():
 
         password_hash = generate_password_hash(password)
 
-        db = get_db()
-        try:
-            db.execute("""
-                INSERT INTO utenti (
-                    nome, cognome, data_nascita, luogo_nascita, indirizzo, citta, comune, cap,
-                    email, telefono, username, password_hash, consenso_privacy, stato
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?, 'pending')
-            """, (nome, cognome, data_nascita, luogo_nascita, indirizzo, citta, comune, cap,
-                  email, telefono, username, password_hash, int(consenso)))
-            db.commit()
-        except sqlite3.IntegrityError:
-            flash("Email o username già esistenti.")
-            return redirect(url_for("register"))
+        with get_db_conn() as db:
+            try:
+                db.execute("""
+                    INSERT INTO utenti (
+                        nome, cognome, data_nascita, luogo_nascita, indirizzo, citta, comune, cap,
+                        email, telefono, username, password_hash, consenso_privacy, stato
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?, 'pending')
+                """, (nome, cognome, data_nascita, luogo_nascita, indirizzo, citta, comune, cap,
+                      email, telefono, username, password_hash, int(consenso)))
+                db.commit()
+            except sqlite3.IntegrityError:
+                flash("Email o username già esistenti.")
+                return redirect(url_for("register"))
 
-# ----------------- INVIO MAIL ALL'ADMIN -----------------
-        import smtplib
-        from email.message import EmailMessage
-        import os
-
+        # ----------------- INVIO MAIL ADMIN -----------------
         admin_email = os.environ.get('ADMIN_EMAIL')
         if admin_email:
             try:
@@ -162,7 +155,6 @@ def register():
                     f"Nuovo utente registrato:\n\n"
                     f"Nome: {nome}\nCognome: {cognome}\nUsername: {username}\nEmail: {email}"
                 )
-
                 with smtplib.SMTP(os.environ.get('MAIL_SERVER'), int(os.environ.get('MAIL_PORT'))) as server:
                     server.starttls()
                     server.login(os.environ.get('MAIL_USERNAME'), os.environ.get('MAIL_PASSWORD'))
@@ -182,11 +174,8 @@ def user_login():
         username = request.form["username"].strip()
         password = request.form["password"]
 
-        db = get_db()
-        user = db.execute(
-            "SELECT * FROM utenti WHERE username=?",
-            (username,)
-        ).fetchone()
+        with get_db_conn() as db:
+            user = db.execute("SELECT * FROM utenti WHERE username=?", (username,)).fetchone()
 
         if not user or not check_password_hash(user["password_hash"], password):
             flash("Credenziali non valide.")
@@ -194,7 +183,7 @@ def user_login():
 
         if user["stato"] != "attivo":
             flash("Account non attivo. Attendi l’approvazione dell’admin.")
-            return redirect(url_for("user_login"))
+            return redirect(url_for("home"))
 
         session["user_id"] = user["id"]
         session["username"] = user["username"]
@@ -212,10 +201,9 @@ def user_logout():
     flash("Logout effettuato.")
     return redirect(url_for("home"))
 
-# ----------------- ADMIN LOGIN / LOGOUT (già esistenti) -----------------
+# ----------------- ADMIN LOGIN / LOGOUT -----------------
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    # login admin semplice hardcoded
     if request.method == "POST":
         username = request.form["username"]
         password = request.form["password"]
@@ -232,101 +220,95 @@ def logout():
     session.pop("admin", None)
     return redirect("/")
 
-# ----------------- ADMIN PAGINE ESISTENTI -----------------
+# ----------------- ADMIN DASHBOARD -----------------
 @app.route("/admin")
 @admin_required
 def admin():
-    db = get_db()
-    classi = db.execute("SELECT * FROM classi ORDER BY data ASC, ora ASC").fetchall()
-    dati = []
-    for c in classi:
-        prenotati = db.execute("""
-            SELECT u.username
-            FROM prenotazioni p
-            JOIN utenti u ON u.id = p.user_id
-            WHERE p.classe_id=?
-        """, (c["id"],)).fetchall()
-        count = len(prenotati)
-        stato = "ok"
-        if count >= c["max_posti"]:
-            stato = "piena"
-        elif count < MIN_ISCRITTI:
-            stato = "sotto_minimo"
-        dati.append({
-            "classe": c,
-            "prenotati": [p["username"] for p in prenotati],
-            "stato": stato,
-            "count": count
-        })
+    with get_db_conn() as db:
+        classi = db.execute("SELECT * FROM classi ORDER BY data ASC, ora ASC").fetchall()
+        dati = []
+        for c in classi:
+            prenotati = db.execute("""
+                SELECT u.username
+                FROM prenotazioni p
+                JOIN utenti u ON u.id = p.user_id
+                WHERE p.classe_id=?
+            """, (c["id"],)).fetchall()
+            count = len(prenotati)
+            stato = "ok"
+            if count >= c["max_posti"]:
+                stato = "piena"
+            elif count < MIN_ISCRITTI:
+                stato = "sotto_minimo"
+            dati.append({
+                "classe": c,
+                "prenotati": [p["username"] for p in prenotati],
+                "stato": stato,
+                "count": count
+            })
     return render_template("admin.html", dati=dati, min_iscritti=MIN_ISCRITTI)
 
+# ----------------- ADMIN: GESTIONE CLASSI -----------------
 @app.route("/admin/add", methods=["POST"])
 @admin_required
 def add_classe():
     data = request.form["data"]
     ora = request.form["ora"]
     max_posti = request.form["max_posti"]
-    db = get_db()
-    db.execute("INSERT INTO classi (data, ora, max_posti) VALUES (?,?,?)", (data, ora, max_posti))
-    db.commit()
-    flash("✅ Lezione aggiunta con successo!")
+    with get_db_conn() as db:
+        db.execute("INSERT INTO classi (data, ora, max_posti) VALUES (?,?,?)", (data, ora, max_posti))
+        db.commit()
+        flash("✅ Lezione aggiunta con successo!")
     return redirect(url_for("admin"))
 
 @app.route("/admin/delete/<int:classe_id>")
 @admin_required
 def delete_classe(classe_id):
-    db = get_db()
-    db.execute("DELETE FROM prenotazioni WHERE classe_id=?", (classe_id,))
-    db.execute("DELETE FROM classi WHERE id=?", (classe_id,))
-    db.commit()
-    flash("🗑️ Lezione eliminata con successo!")
+    with get_db_conn() as db:
+        db.execute("DELETE FROM prenotazioni WHERE classe_id=?", (classe_id,))
+        db.execute("DELETE FROM classi WHERE id=?", (classe_id,))
+        db.commit()
+        flash("🗑️ Lezione eliminata con successo!")
     return redirect(url_for("admin"))
 
 @app.route("/admin/edit/<int:classe_id>", methods=["GET", "POST"])
 @admin_required
 def edit_classe(classe_id):
-    db = get_db()
-    if request.method == "POST":
-        data = request.form["data"]
-        ora = request.form["ora"]
-        max_posti = request.form["max_posti"]
-        db.execute("UPDATE classi SET data=?, ora=?, max_posti=? WHERE id=?",
-                   (data, ora, max_posti, classe_id))
-        db.commit()
-        flash("✏️ Lezione modificata con successo!")
-        return redirect(url_for("admin"))
-    classe = db.execute("SELECT * FROM classi WHERE id=?", (classe_id,)).fetchone()
+    with get_db_conn() as db:
+        if request.method == "POST":
+            data = request.form["data"]
+            ora = request.form["ora"]
+            max_posti = request.form["max_posti"]
+            db.execute("UPDATE classi SET data=?, ora=?, max_posti=? WHERE id=?",
+                       (data, ora, max_posti, classe_id))
+            db.commit()
+            flash("✏️ Lezione modificata con successo!")
+            return redirect(url_for("admin"))
+        classe = db.execute("SELECT * FROM classi WHERE id=?", (classe_id,)).fetchone()
     return render_template("edit_classe.html", classe=classe)
 
 # ----------------- ADMIN: GESTIONE UTENTI -----------------
 @app.route("/admin/users")
 @admin_required
 def admin_users():
-    db = get_db()
-    users = db.execute("""
-        SELECT id, nome, cognome, email, telefono, username, stato,
-               data_nascita, luogo_nascita, indirizzo, citta, comune, cap
-        FROM utenti
-        ORDER BY stato DESC, cognome ASC, nome ASC
-    """).fetchall()
+    with get_db_conn() as db:
+        users = db.execute("""
+            SELECT id, nome, cognome, email, telefono, username, stato,
+                   data_nascita, luogo_nascita, indirizzo, citta, comune, cap
+            FROM utenti
+            ORDER BY stato DESC, cognome ASC, nome ASC
+        """).fetchall()
     return render_template("admin_users.html", users=users)
 
 @app.route("/admin/users/<int:user_id>/approve")
 @admin_required
 def admin_users_approve(user_id):
-    db = get_db()
-    # Aggiorna lo stato dell'utente
-    db.execute("UPDATE utenti SET stato='attivo' WHERE id=?", (user_id,))
-    db.commit()
+    with get_db_conn() as db:
+        db.execute("UPDATE utenti SET stato='attivo' WHERE id=?", (user_id,))
+        db.commit()
+        user = db.execute("SELECT nome, cognome, email, username FROM utenti WHERE id=?", (user_id,)).fetchone()
 
-    # Recupera i dati dell'utente per inviare la mail
-    user = db.execute("SELECT nome, cognome, email, username FROM utenti WHERE id=?", (user_id,)).fetchone()
-    
     if user and user["email"]:
-        import smtplib
-        from email.message import EmailMessage
-        import os
-
         try:
             msg = EmailMessage()
             msg['Subject'] = "Account approvato"
@@ -338,7 +320,6 @@ def admin_users_approve(user_id):
                 "Ora puoi accedere e prenotare le lezioni.\n\n"
                 "Grazie!"
             )
-
             with smtplib.SMTP(os.environ.get('MAIL_SERVER'), int(os.environ.get('MAIL_PORT'))) as server:
                 server.starttls()
                 server.login(os.environ.get('MAIL_USERNAME'), os.environ.get('MAIL_PASSWORD'))
@@ -349,23 +330,22 @@ def admin_users_approve(user_id):
     flash("✅ Utente approvato e notifica inviata via mail.")
     return redirect(url_for("admin_users"))
 
-
 @app.route("/admin/users/<int:user_id>/suspend")
 @admin_required
 def admin_users_suspend(user_id):
-    db = get_db()
-    db.execute("UPDATE utenti SET stato='sospeso' WHERE id=?", (user_id,))
-    db.commit()
+    with get_db_conn() as db:
+        db.execute("UPDATE utenti SET stato='sospeso' WHERE id=?", (user_id,))
+        db.commit()
     flash("⏸️ Utente sospeso.")
     return redirect(url_for("admin_users"))
 
 @app.route("/admin/users/<int:user_id>/delete")
 @admin_required
 def admin_users_delete(user_id):
-    db = get_db()
-    db.execute("DELETE FROM prenotazioni WHERE user_id=?", (user_id,))
-    db.execute("DELETE FROM utenti WHERE id=?", (user_id,))
-    db.commit()
+    with get_db_conn() as db:
+        db.execute("DELETE FROM prenotazioni WHERE user_id=?", (user_id,))
+        db.execute("DELETE FROM utenti WHERE id=?", (user_id,))
+        db.commit()
     flash("🗑️ Utente eliminato (e prenotazioni rimosse).")
     return redirect(url_for("admin_users"))
 
