@@ -146,6 +146,30 @@ def register():
             flash("Email o username già esistenti.")
             return redirect(url_for("register"))
 
+# ----------------- INVIO MAIL ALL'ADMIN -----------------
+        import smtplib
+        from email.message import EmailMessage
+        import os
+
+        admin_email = os.environ.get('ADMIN_EMAIL')
+        if admin_email:
+            try:
+                msg = EmailMessage()
+                msg['Subject'] = "Nuova registrazione in attesa"
+                msg['From'] = os.environ.get('MAIL_USERNAME')
+                msg['To'] = admin_email
+                msg.set_content(
+                    f"Nuovo utente registrato:\n\n"
+                    f"Nome: {nome}\nCognome: {cognome}\nUsername: {username}\nEmail: {email}"
+                )
+
+                with smtplib.SMTP(os.environ.get('MAIL_SERVER'), int(os.environ.get('MAIL_PORT'))) as server:
+                    server.starttls()
+                    server.login(os.environ.get('MAIL_USERNAME'), os.environ.get('MAIL_PASSWORD'))
+                    server.send_message(msg)
+            except Exception as e:
+                print(f"Errore invio mail: {e}")
+
         flash("✅ Registrazione inviata! Attendi l’approvazione dell’admin.")
         return redirect(url_for("user_login"))
 
@@ -291,10 +315,40 @@ def admin_users():
 @admin_required
 def admin_users_approve(user_id):
     db = get_db()
+    # Aggiorna lo stato dell'utente
     db.execute("UPDATE utenti SET stato='attivo' WHERE id=?", (user_id,))
     db.commit()
-    flash("✅ Utente approvato.")
+
+    # Recupera i dati dell'utente per inviare la mail
+    user = db.execute("SELECT nome, cognome, email, username FROM utenti WHERE id=?", (user_id,)).fetchone()
+    
+    if user and user["email"]:
+        import smtplib
+        from email.message import EmailMessage
+        import os
+
+        try:
+            msg = EmailMessage()
+            msg['Subject'] = "Account approvato"
+            msg['From'] = os.environ.get('MAIL_USERNAME')
+            msg['To'] = user["email"]
+            msg.set_content(
+                f"Ciao {user['nome']} {user['cognome']},\n\n"
+                f"Il tuo account (username: {user['username']}) è stato approvato dall'admin.\n"
+                "Ora puoi accedere e prenotare le lezioni.\n\n"
+                "Grazie!"
+            )
+
+            with smtplib.SMTP(os.environ.get('MAIL_SERVER'), int(os.environ.get('MAIL_PORT'))) as server:
+                server.starttls()
+                server.login(os.environ.get('MAIL_USERNAME'), os.environ.get('MAIL_PASSWORD'))
+                server.send_message(msg)
+        except Exception as e:
+            print(f"Errore invio mail all'utente: {e}")
+
+    flash("✅ Utente approvato e notifica inviata via mail.")
     return redirect(url_for("admin_users"))
+
 
 @app.route("/admin/users/<int:user_id>/suspend")
 @admin_required
