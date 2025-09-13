@@ -1,0 +1,42 @@
+{% extends "layout.html" %}
+
+{% block title %}Prenotazioni Classi{% endblock %}
+
+{% block content %}
+<h1>Prenota la tua lezione</h1>
+
+<table class="admin-table">
+    <tr>
+        <th>Data</th>
+        <th>Ora</th>
+        <th>Posti massimi</th>
+        <th>Posti prenotati</th>
+        <th>Disponibili</th>
+        <th>Prenota</th>
+    </tr>
+    {% for c in classi %}
+    <tr>
+        <td>{{ c.data }}</td>
+        <td>{{ c.ora }}</td>
+        <td>{{ c.max_posti }}</td>
+        <td>{{ prenotazioni[c.id] }}</td>
+        <td>{{ c.max_posti - prenotazioni[c.id] }}</td>
+        <td>
+            {% if user_id and user_status == 'attivo' %}
+                {% if prenotazioni[c.id] < c.max_posti %}
+                    <form action="{{ url_for('prenota', classe_id=c.id) }}" method="post">
+                        <button type="submit">Prenota</button>
+                    </form>
+                {% else %}
+                    <strong>Piena</strong>
+                {% endif %}
+            {% elif not user_id %}
+                <a href="{{ url_for('user_login') }}">Accedi per prenotare</a>
+            {% else %}
+                <em>Account non attivo</em>
+            {% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "layout.html" %}
+
+{% block title %}Modifica Lezione{% endblock %}
+
+{% block content %}
+<h1>Modifica lezione</h1>
+
+<form action="/admin/edit/{{ classe.id }}" method="post">
+    <label for="data">Data</label>
+    <input type="date" id="data" name="data" value="{{ classe.data }}" required>
+
+    <label for="ora">Ora</label>
+    <input type="time" id="ora" name="ora" value="{{ classe.ora }}" required>
+
+    <label for="max_posti">Posti massimi</label>
+    <input type="number" id="max_posti" name="max_posti" value="{{ classe.max_posti }}" min="1" required>
+
+    <button type="submit">Salva modifiche</button>
+</form>
+
+<a href="{{ url_for('admin') }}">⬅ Torna alla pagina admin</a>
+{% endblock %}

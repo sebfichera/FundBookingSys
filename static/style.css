@@ -1,0 +1,249 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background: #f9f9f9;
+    color: #333;
+}
+
+/* Navbar */
+nav {
+    background: #222;
+    padding: 10px;
+}
+nav a {
+    color: #fff;
+    text-decoration: none;
+    margin-right: 15px;
+}
+nav a:hover {
+    text-decoration: underline;
+}
+
+/* Light mode */
+.container {
+    max-width: 800px;
+    margin: 30px auto;
+    background-color: #fff;  /* bianco */
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+/* Dark mode */
+body.dark-mode .container {
+    max-width: 800px;
+    margin: 30px auto;
+    background-color: #1e1e1e;  /* grigio scuro */
+    color: #eee;                /* testo chiaro */
+    box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+}
+
+/* Messaggi flash */
+.flash {
+    padding: 10px;
+    margin-bottom: 15px;
+    border-radius: 5px;
+    background: #ffdddd;
+    border: 1px solid #dd4444;
+    color: #a00;
+}
+
+/* Tabelle */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+}
+table th, table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: center;
+}
+table th {
+    background: #f2f2f2;
+}
+
+/* Form */
+form {
+    margin-top: 15px;
+}
+input, button {
+    padding: 8px;
+    margin: 5px 0;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+}
+button {
+    background: #222;
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+button:hover {
+    background: #444;
+}
+
+/* --- Stile ADMIN --- */
+
+/* --- TABLA ADMIN BASE --- */
+.admin-table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-bottom: 30px;
+}
+
+/* Celle */
+.admin-table th, .admin-table td {
+    border: 1px solid #ddd;
+    padding: 10px;
+    text-align: left;
+}
+
+/* Header */
+.admin-table th {
+    background-color: #34495e;
+    color: white;
+}
+
+/* --- LIGHT MODE --- */
+body:not(.dark-mode) .admin-table td {
+    background-color: #fff;
+    color: #000;
+}
+
+/* Alternanza righe light mode */
+body:not(.dark-mode) .admin-table tr:nth-child(even):not(.ok):not(.piena):not(.sotto_minimo) {
+    background-color: #f9f9f9; /* grigio chiarissimo */
+}
+body:not(.dark-mode) .admin-table tr:nth-child(odd):not(.ok):not(.piena):not(.sotto_minimo) {
+    background-color: #ffffff; /* bianco */
+}
+
+/* Stati Light Mode */
+body:not(.dark-mode) .admin-table tr.ok {
+    background-color: #d4edda;
+    color: #155724;
+}
+body:not(.dark-mode) .admin-table tr.sotto_minimo {
+    background-color: #fff3cd;
+    color: #856404;
+}
+body:not(.dark-mode) .admin-table tr.piena {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+/* --- DARK MODE --- */
+body.dark-mode .admin-table th {
+    background-color: #1f2a36;
+    color: #eee;
+}
+body.dark-mode .admin-table td {
+    border-color: #555;
+    color: #eee;
+}
+
+/* Alternanza righe dark mode */
+body.dark-mode .admin-table tr:nth-child(even):not(.ok):not(.piena):not(.sotto_minimo) {
+    background-color: #2a3b4c;
+}
+body.dark-mode .admin-table tr:nth-child(odd):not(.ok):not(.piena):not(.sotto_minimo) {
+    background-color: #243043;
+}
+
+/* Stati in Dark Mode */
+body.dark-mode .admin-table tr.ok {
+    background-color: #2e7d32;
+    color: #fff;
+}
+body.dark-mode .admin-table tr.sotto_minimo {
+    background-color: #8b7d3c;
+    color: #fff;
+}
+body.dark-mode .admin-table tr.piena {
+    background-color: #8b2c2c;
+    color: #fff;
+}
+
+/* Hover righe */
+.admin-table tr:hover {
+    filter: brightness(1.05);
+}
+
+/* Link azioni */
+.action-links a {
+    margin-right: 10px;
+    text-decoration: none;
+    color: #007bff;
+}
+body.dark-mode .action-links a {
+    color: #66b0ff;
+}
+.action-links a:hover {
+    text-decoration: underline;
+}
+
+/* Form aggiungi/modifica lezione */
+.admin-form input, .admin-form button {
+    padding: 5px;
+    margin-right: 5px;
+    border-radius: 4px;
+}
+body.dark-mode .admin-form input, 
+body.dark-mode .admin-form button {
+    background-color: #34495e;
+    color: #eee;
+    border: 1px solid #555;
+}
+.admin-form button {
+    cursor: pointer;
+}
+
+/* Flash message styling */
+.flash {
+    background-color: rgba(220, 220, 220, 0.7); /* grigio chiaro con trasparenza 70% */
+    color: #000; /* testo nero */
+    padding: 10px;
+    margin-bottom: 15px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+}
+
+/* Light mode */
+.flash.light {
+    background-color: rgba(220, 220, 220, 0.7); /* grigio chiaro trasparente */
+    color: #000; /* testo nero */
+    border-color: #bbb;
+}
+
+/* Dark mode */
+.flash.dark {
+    background-color: rgba(50, 50, 50, 0.7); /* grigio scuro trasparente */
+    color: #fff; /* testo bianco */
+    border-color: #444;
+}
+
+/* Effetto hover */
+.flash:hover {
+    background-color: rgba(150, 150, 150, 0.85); /* più opaco */
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    transform: scale(1.02);
+}
+
+/* Light mode di default */
+body {
+    background-color: #f9f9f9;
+    color: #333;
+}
+
+/* Dark mode */
+body.dark-mode {
+    background-color: #1e1e1e;
+    color: #eee;
+}
+
+/* Dark mode per link */
+body.dark-mode a {
+    color: #aad4ff;
+}

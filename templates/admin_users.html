@@ -1,0 +1,45 @@
+{% extends "layout.html" %}
+{% block title %}Admin - Utenti{% endblock %}
+{% block content %}
+<h1>Gestione Utenti</h1>
+
+<table class="admin-table">
+  <tr>
+    <th>Nome</th>
+    <th>Contatti</th>
+    <th>Credenziali</th>
+    <th>Residenza</th>
+    <th>Stato</th>
+    <th>Azioni</th>
+  </tr>
+  {% for u in users %}
+  <tr class="{% if u.stato == 'attivo' %}ok{% elif u.stato == 'pending' %}sotto_minimo{% else %}piena{% endif %}">
+    <td>
+      <strong>{{ u.cognome }} {{ u.nome }}</strong><br>
+      Nascita: {{ u.data_nascita }} – {{ u.luogo_nascita }}
+    </td>
+    <td>
+      Email: {{ u.email }}<br>
+      Tel: {{ u.telefono or '-' }}
+    </td>
+    <td>
+      Username: {{ u.username }}
+    </td>
+    <td>
+      {{ u.indirizzo }}<br>
+      {{ u.cap }} {{ u.citta }} ({{ u.comune }})
+    </td>
+    <td><strong>{{ u.stato|capitalize }}</strong></td>
+    <td class="action-links">
+      {% if u.stato != 'attivo' %}
+        <a href="{{ url_for('admin_users_approve', user_id=u.id) }}">Approva</a>
+      {% endif %}
+      {% if u.stato == 'attivo' %}
+        <a href="{{ url_for('admin_users_suspend', user_id=u.id) }}">Disattiva</a>
+      {% endif %}
+      <a href="{{ url_for('admin_users_delete', user_id=u.id) }}" onclick="return confirm('Confermi eliminazione utente? Questa azione rimuove anche le sue prenotazioni.');">Elimina</a>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}
