@@ -3,6 +3,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import scoped_session, sessionmaker
+from sqlalchemy.exc import IntegrityError
 import os
 import smtplib
 from email.message import EmailMessage
@@ -89,6 +90,7 @@ def admin_required(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
         if not session.get("admin"):
+            flash("Devi effettuare il login come admin.")
             return redirect(url_for("login"))
         return f(*args, **kwargs)
     return wrapper
@@ -139,12 +141,16 @@ def prenota(classe_id):
     if count >= max_posti:
         flash("Classe piena!")
         return redirect(url_for("home"))
-    db.execute(
-        text("INSERT INTO prenotazioni (user_id, classe_id) VALUES (:uid, :cid)"),
-        {"uid": user_id, "cid": classe_id}
-    )
-    db.commit()
-    flash("✅ Prenotazione effettuata!")
+    try:
+        db.execute(
+            text("INSERT INTO prenotazioni (user_id, classe_id) VALUES (:uid, :cid)"),
+            {"uid": user_id, "cid": classe_id}
+        )
+        db.commit()
+        flash("✅ Prenotazione effettuata!")
+    except IntegrityError:
+        db.rollback()
+        flash("Errore: prenotazione già esistente o dati non validi.")
     return redirect(url_for("home"))
 
 # ----------------- REGISTRAZIONE UTENTE -----------------
@@ -183,14 +189,24 @@ def register():
                     )
                 """),
                 {
-                    "nome": nome, "cognome": cognome, "data_nascita": data_nascita,
-                    "luogo_nascita": luogo_nascita, "indirizzo": indirizzo, "citta": citta,
-                    "comune": comune, "cap": cap, "email": email, "telefono": telefono,
-                    "username": username, "password_hash": password_hash, "consenso": int(consenso)
+                    "nome": nome,
+                    "cognome": cognome,
+                    "data_nascita": data_nascita,
+                    "luogo_nascita": luogo_nascita,
+                    "indirizzo": indirizzo,
+                    "citta": citta,
+                    "comune": comune,
+                    "cap": cap,
+                    "email": email,
+                    "telefono": telefono,
+                    "username": username,
+                    "password_hash": password_hash,
+                    "consenso": int(consenso)
                 }
             )
             db.commit()
-        except Exception as e:
+        except IntegrityError:
+            db.rollback()
             flash("Email o username già esistenti.")
             return redirect(url_for("register"))
 
@@ -255,6 +271,7 @@ def login():
         password = request.form["password"]
         if username == "admin" and password == "password123":
             session["admin"] = True
+            flash("Login admin effettuato.")
             return redirect(url_for("admin"))
         else:
             flash("Credenziali errate!")
@@ -264,7 +281,8 @@ def login():
 @app.route("/logout")
 def logout():
     session.pop("admin", None)
-    return redirect("/")
+    flash("Logout admin effettuato.")
+    return redirect(url_for("home"))
 
 # ----------------- ADMIN DASHBOARD -----------------
 @app.route("/admin")
