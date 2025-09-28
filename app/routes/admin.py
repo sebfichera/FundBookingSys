@@ -41,26 +41,44 @@ def admin_login():
 @admin_bp.route("/")
 @admin_required
 def dashboard():
-    classi = db.execute(text("SELECT * FROM classi ORDER BY data ASC, ora ASC")).fetchall()
-    dati = []
-    for c in classi:
-        prenotati = db.execute(
-            text("SELECT u.username FROM prenotazioni p JOIN utenti u ON u.id=p.user_id WHERE p.classe_id=:cid"),
-            {"cid": c.id}
+    try:
+        classi = db.execute(
+            text("SELECT * FROM classi ORDER BY data ASC, ora ASC")
         ).fetchall()
-        count = len(prenotati)
-        stato = "ok"
-        if count >= c.max_posti:
-            stato = "piena"
-        elif count < MIN_ISCRITTI:
-            stato = "sotto_minimo"
-        dati.append({
-            "classe": c,
-            "prenotati": [p.username for p in prenotati],
-            "stato": stato,
-            "count": count
-        })
-    return render_template("admin.html", dati=dati, min_iscritti=MIN_ISCRITTI)
+
+        dati = []
+        for c in classi:
+            # accedi come dict, non come attributo
+            prenotati = db.execute(
+                text("""
+                    SELECT u.username 
+                    FROM prenotazioni p 
+                    JOIN utenti u ON u.id = p.user_id 
+                    WHERE p.classe_id = :cid
+                """),
+                {"cid": c["id"]}
+            ).fetchall()
+
+            count = len(prenotati)
+            stato = "ok"
+            if count >= c["max_posti"]:
+                stato = "piena"
+            elif count < MIN_ISCRITTI:
+                stato = "sotto_minimo"
+
+            dati.append({
+                "classe": c,  # puoi passare Row direttamente al template
+                "prenotati": [p.username for p in prenotati],
+                "stato": stato,
+                "count": count
+            })
+
+        return render_template("admin.html", dati=dati, min_iscritti=MIN_ISCRITTI)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return f"Errore in dashboard: {e}", 500
 
 # ----------------- GESTIONE CLASSI -----------------
 @admin_bp.route("/add", methods=["POST"])
