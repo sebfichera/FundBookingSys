@@ -31,6 +31,9 @@ def home():
 @user_bp.route("/user/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
+
+        print("💡 Inizio registrazione")  # debug iniziale
+
         nome = request.form["nome"].strip()
         cognome = request.form["cognome"].strip()
         data_nascita = request.form["data_nascita"]
@@ -45,11 +48,15 @@ def register():
         password = request.form["password"]
         consenso = request.form.get("consenso_privacy") == "on"
 
+        print("💡 Dati letti:", nome, cognome, email, username, consenso)
+
         if not consenso:
             flash("Devi acconsentire al trattamento dei dati per proseguire.")
             return redirect(url_for("user_bp.register"))
 
         password_hash = hash_password(password)
+
+        print("💡 Password hash generata")
 
         try:
             db.execute(
@@ -79,20 +86,35 @@ def register():
                 }
             )
             db.commit()
+
+            print("💡 Utente inserito nel DB")
+
         except IntegrityError:
             db.rollback()
+
+            print("⚠️ IntegrityError:", e)
+
             flash("Email o username già esistenti.") 
+            return redirect(url_for("user_bp.register"))
+        except Exception as e:
+            db.rollback()
+            print("❌ Errore generico durante registrazione:", e)
+            flash("Errore durante la registrazione. Contatta l'admin.")
             return redirect(url_for("user_bp.register"))
         
         # Mail admin
-        admin_email = os.environ.get("ADMIN_EMAIL")
-        if admin_email:
-            send_email(
-                admin_email,
-                "Nuova registrazione in attesa",
-                f"Nuovo utente registrato:\n\nNome: {nome}\nCognome: {cognome}\nUsername: {username}\nEmail: {email}",
-                async_send=True  # invio in thread separato
-            )
+        try:
+            admin_email = os.environ.get("ADMIN_EMAIL")
+            if admin_email:
+                send_email(
+                    admin_email,
+                    "Nuova registrazione in attesa",
+                    f"Nuovo utente registrato:\n\nNome: {nome}\nCognome: {cognome}\nUsername: {username}\nEmail: {email}",
+                    async_send=True  # invio in thread separato
+                )
+                print("💡 Mail inviata all'admin")
+        except Exception as e:
+            print("⚠️ Errore invio mail admin:", e)
 
         flash("✅ Registrazione inviata! Attendi l’approvazione dell’admin.")
         return redirect(url_for("user_bp.user_login"))
