@@ -2,6 +2,7 @@ import os
 from flask import Flask
 from sqlalchemy import create_engine
 from sqlalchemy.orm import scoped_session, sessionmaker
+from flask import Flask, redirect, url_for
 
 def create_app():
     app = Flask(__name__)
@@ -25,5 +26,10 @@ def create_app():
     app.register_blueprint(user_bp, url_prefix="/user")
     app.register_blueprint(admin_bp, url_prefix="/admin")
     app.register_blueprint(prenotazioni_bp, url_prefix="/prenota")
+
+    # ✅ Redirect root "/" -> "/user"
+    @app.route("/")
+    def root():
+        return redirect(url_for("user_bp.home"))
 
     return app
