@@ -30,7 +30,7 @@ def admin_login():
         if username == os.environ.get("ADMIN_USERNAME") and password == os.environ.get("ADMIN_PASSWORD"):
             session["admin"] = True
             flash("✅ Login admin effettuato!")
-            return redirect(url_for("admin_bp.admin"))
+            return redirect(url_for("admin_bp.dashboard"))
         else:
             flash("Credenziali admin non valide.")
             return redirect(url_for("admin_bp.admin_login"))
