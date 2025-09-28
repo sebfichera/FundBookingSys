@@ -1,7 +1,7 @@
 import os
 from flask import Blueprint, render_template, request, redirect, session, url_for, flash
 from ..models import db
-from ..utils import hash_password, verify_password, send_email
+from ..utils import hash_password, verify_password, send_email_async
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import text
 
@@ -106,11 +106,10 @@ def register():
         try:
             admin_email = os.environ.get("ADMIN_EMAIL")
             if admin_email:
-                send_email(
+                send_email_async(
                     admin_email,
                     "Nuova registrazione in attesa",
-                    f"Nuovo utente registrato:\n\nNome: {nome}\nCognome: {cognome}\nUsername: {username}\nEmail: {email}",
-                    async_send=True  # invio in thread separato
+                    f"Nuovo utente registrato:\n\nNome: {nome}\nCognome: {cognome}\nUsername: {username}\nEmail: {email}"
                 )
                 print("💡 Mail inviata all'admin")
         except Exception as e:

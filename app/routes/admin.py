@@ -1,7 +1,7 @@
 import os
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
 from ..models import db
-from ..utils import send_email
+from ..utils import send_email_async
 from sqlalchemy import text
 
 admin_bp = Blueprint("admin_bp", __name__, url_prefix="/admin")  # url_prefix per tutte le route admin
@@ -121,11 +121,10 @@ def admin_users_approve(user_id):
     db.commit()
     user = db.execute(text("SELECT nome,cognome,email,username FROM utenti WHERE id=:uid"), {"uid": user_id}).fetchone()
     if user and user.email:
-        send_email(
+        send_email_async(
             user.email,
             "Account approvato",
-            f"Ciao {user.nome} {user.cognome},\n\nIl tuo account (username: {user.username}) è stato approvato dall'admin.\nOra puoi accedere e prenotare le lezioni.\n\nGrazie!",
-            async_send=True  # invio in thread separato
+            f"Ciao {user.nome} {user.cognome},\n\nIl tuo account (username: {user.username}) è stato approvato dall'admin.\nOra puoi accedere e prenotare le lezioni.\n\nGrazie!"
         )
     flash("✅ Utente approvato e notifica inviata via mail.")
     return redirect(url_for("admin_bp.admin_users"))
