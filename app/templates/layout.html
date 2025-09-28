@@ -11,7 +11,7 @@
   <a href="{{ url_for('user_bp.home') }}">Home</a>
   
   {% if session.get('admin') %}
-    <a href="{{ url_for('admin_bp.admin') }}">Admin</a>
+    <a href="{{ url_for('admin_bp.dashboard') }}">Admin</a>
     <a href="{{ url_for('admin_bp.admin_users') }}">Utenti</a>
     <a href="{{ url_for('admin_bp.admin_logout') }}">Logout Admin</a>
   {% else %}
