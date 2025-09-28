@@ -1,11 +1,8 @@
 {% extends "layout.html" %}
-
 {% block title %}Login Admin{% endblock %}
-
 {% block content %}
 <h1>Login Admin</h1>
-
-<form action="{{ url_for('login') }}" method="post">
+<form action="{{ url_for('admin_bp.admin_login') }}" method="post">
     <label for="username">Username</label><br>
     <input type="text" id="username" name="username" required><br><br>
 

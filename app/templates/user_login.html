@@ -2,12 +2,12 @@
 {% block title %}Login Utente{% endblock %}
 {% block content %}
 <h1>Login Utente</h1>
-<form action="{{ url_for('user_login') }}" method="post">
+<form action="{{ url_for('user_bp.user_login') }}" method="post">
   <label>Username</label>
   <input type="text" name="username" required>
   <label>Password</label>
   <input type="password" name="password" required>
   <button type="submit">Login</button>
 </form>
-<p>Non hai un account? <a href="{{ url_for('register') }}">Registrati</a></p>
+<p>Non hai un account? <a href="{{ url_for('user_bp.register') }}">Registrati</a></p>
 {% endblock %}

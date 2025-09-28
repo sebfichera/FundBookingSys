@@ -5,7 +5,7 @@
 {% block content %}
 <h1>Modifica lezione</h1>
 
-<form action="/admin/edit/{{ classe.id }}" method="post">
+<form action="{{ url_for('admin_bp.edit_classe', classe_id=classe.id) }}" method="post">
     <label for="data">Data</label>
     <input type="date" id="data" name="data" value="{{ classe.data }}" required>
 
@@ -18,5 +18,5 @@
     <button type="submit">Salva modifiche</button>
 </form>
 
-<a href="{{ url_for('admin') }}">⬅ Torna alla pagina admin</a>
+<a href="{{ url_for('admin_bp.admin') }}">⬅ Torna alla pagina admin</a>
 {% endblock %}

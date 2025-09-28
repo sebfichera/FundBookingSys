@@ -1,11 +1,34 @@
+import os
 from flask import Blueprint, render_template, request, redirect, session, url_for, flash
 from ..models import db
 from ..utils import hash_password, verify_password, send_email
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import text
 
 user_bp = Blueprint("user_bp", __name__)
 
-@user_bp.route("/register", methods=["GET","POST"])
+# ----------------- HOME -----------------
+@user_bp.route("/")
+def home():
+    print("🚀 Home route chiamata")
+    classi = db.execute(text("SELECT * FROM classi ORDER BY data ASC, ora ASC")).fetchall()
+    prenotazioni_count = {}
+    for c in classi:
+        count = db.execute(
+            text("SELECT COUNT(*) AS n FROM prenotazioni WHERE classe_id=:cid"),
+            {"cid": c.id}
+        ).fetchone().n
+        prenotazioni_count[c.id] = count
+    return render_template(
+        "home.html",
+        classi=classi,
+        prenotazioni=prenotazioni_count,
+        user_id=session.get("user_id"),
+        user_status=session.get("user_status")
+    )
+
+# ----------------- REGISTRAZIONE -----------------
+@user_bp.route("/user/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
         nome = request.form["nome"].strip()
@@ -29,42 +52,69 @@ def register():
         password_hash = hash_password(password)
 
         try:
-            db.execute("""
-                INSERT INTO utenti (nome,cognome,data_nascita,luogo_nascita,indirizzo,citta,comune,cap,
-                    email,telefono,username,password_hash,consenso_privacy,stato)
-                VALUES (:nome,:cognome,:data_nascita,:luogo_nascita,:indirizzo,:citta,:comune,:cap,
-                        :email,:telefono,:username,:password_hash,:consenso,'pending')
-            """, {"nome":nome,"cognome":cognome,"data_nascita":data_nascita,
-                  "luogo_nascita":luogo_nascita,"indirizzo":indirizzo,"citta":citta,
-                  "comune":comune,"cap":cap,"email":email,"telefono":telefono,
-                  "username":username,"password_hash":password_hash,"consenso":int(consenso)})
+            db.execute(
+                text("""
+                    INSERT INTO utenti (
+                        nome, cognome, data_nascita, luogo_nascita, indirizzo, citta, comune, cap,
+                        email, telefono, username, password_hash, consenso_privacy, stato
+                    ) VALUES (
+                        :nome, :cognome, :data_nascita, :luogo_nascita, :indirizzo, :citta, :comune, :cap,
+                        :email, :telefono, :username, :password_hash, :consenso, 'pending'
+                    )
+                """),
+                {
+                    "nome": nome,
+                    "cognome": cognome,
+                    "data_nascita": data_nascita,
+                    "luogo_nascita": luogo_nascita,
+                    "indirizzo": indirizzo,
+                    "citta": citta,
+                    "comune": comune,
+                    "cap": cap,
+                    "email": email,
+                    "telefono": telefono,
+                    "username": username,
+                    "password_hash": password_hash,
+                    "consenso": int(consenso)
+                }
+            )
             db.commit()
         except IntegrityError:
             db.rollback()
             flash("Email o username già esistenti.") 
             return redirect(url_for("user_bp.register"))
-
+        
         # Mail admin
         admin_email = os.environ.get("ADMIN_EMAIL")
         if admin_email:
-            send_email(admin_email, "Nuova registrazione in attesa",
-                f"Nuovo utente registrato:\n\nNome: {nome}\nCognome: {cognome}\nUsername: {username}\nEmail: {email}")
+            send_email(
+                admin_email,
+                "Nuova registrazione in attesa",
+                f"Nuovo utente registrato:\n\nNome: {nome}\nCognome: {cognome}\nUsername: {username}\nEmail: {email}",
+                async_send=True  # invio in thread separato
+            )
 
         flash("✅ Registrazione inviata! Attendi l’approvazione dell’admin.")
         return redirect(url_for("user_bp.user_login"))
 
     return render_template("register.html")
 
-@user_bp.route("/user/login", methods=["GET","POST"])
+# ----------------- LOGIN UTENTE -----------------
+@user_bp.route("/user/login", methods=["GET", "POST"])
 def user_login():
-    if request.method=="POST":
+    if request.method == "POST":
         username = request.form["username"].strip()
         password = request.form["password"]
 
-        user = db.execute("SELECT * FROM utenti WHERE username=:username", {"username":username}).fetchone()
+        user = db.execute(
+            text("SELECT * FROM utenti WHERE username=:username"),
+            {"username": username}
+        ).fetchone()
+
         if not user or not verify_password(user.password_hash, password):
             flash("Credenziali non valide.")
             return redirect(url_for("user_bp.user_login"))
+
         if user.stato != "attivo":
             flash("Account non attivo. Attendi l’approvazione dell’admin.")
             return redirect(url_for("user_bp.user_login"))
@@ -73,14 +123,15 @@ def user_login():
         session["username"] = user.username
         session["user_status"] = user.stato
         flash(f"Benvenuto, {user.nome}!")
-        return redirect("/")
+        return redirect(url_for("user_bp.home"))
 
     return render_template("user_login.html")
 
+# ----------------- LOGOUT UTENTE -----------------
 @user_bp.route("/user/logout")
 def user_logout():
     session.pop("user_id", None)
     session.pop("username", None)
     session.pop("user_status", None)
     flash("Logout effettuato.")
-    return redirect("/")
+    return redirect(url_for("user_bp.home"))

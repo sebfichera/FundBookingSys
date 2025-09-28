@@ -32,12 +32,12 @@
     <td><strong>{{ u.stato|capitalize }}</strong></td>
     <td class="action-links">
       {% if u.stato != 'attivo' %}
-        <a href="{{ url_for('admin_users_approve', user_id=u.id) }}">Approva</a>
+        <a href="{{ url_for('admin_bp.admin_users_approve', user_id=u.id) }}">Approva</a>
       {% endif %}
       {% if u.stato == 'attivo' %}
-        <a href="{{ url_for('admin_users_suspend', user_id=u.id) }}">Disattiva</a>
+        <a href="{{ url_for('admin_bp.admin_users_suspend', user_id=u.id) }}">Disattiva</a>
       {% endif %}
-      <a href="{{ url_for('admin_users_delete', user_id=u.id) }}" onclick="return confirm('Confermi eliminazione utente? Questa azione rimuove anche le sue prenotazioni.');">Elimina</a>
+      <a href="{{ url_for('admin_bp.admin_users_delete', user_id=u.id) }}" onclick="return confirm('Confermi eliminazione utente? Questa azione rimuove anche le sue prenotazioni.');">Elimina</a>
     </td>
   </tr>
   {% endfor %}

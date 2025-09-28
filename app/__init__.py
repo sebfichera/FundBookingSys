@@ -22,8 +22,8 @@ def create_app():
     from .routes.admin import admin_bp
     from .routes.prenotazioni import prenotazioni_bp
 
-    app.register_blueprint(user_bp)
-    app.register_blueprint(admin_bp)
-    app.register_blueprint(prenotazioni_bp)
+    app.register_blueprint(user_bp, url_prefix="/user")
+    app.register_blueprint(admin_bp, url_prefix="/admin")
+    app.register_blueprint(prenotazioni_bp, url_prefix="/prenota")
 
     return app

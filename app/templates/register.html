@@ -3,7 +3,8 @@
 {% block content %}
 <h1>Registrazione utente</h1>
 
-<form action="{{ url_for('register') }}" method="post" class="admin-form">
+<form action="{{ url_for('user_bp.register') }}" method="post" class="admin-form">
+  <!-- Dati anagrafici -->
   <h3>Dati anagrafici</h3>
   <input type="text" name="nome" placeholder="Nome" required>
   <input type="text" name="cognome" placeholder="Cognome" required>
@@ -11,16 +12,19 @@
   <input type="date" name="data_nascita" required>
   <input type="text" name="luogo_nascita" placeholder="Luogo di nascita" required>
 
+  <!-- Residenza -->
   <h3>Residenza</h3>
-  <input type="text" name="indirizzo" placeholder="Indirizzo (via e numero)" required>
+  <input type="text" name="indirizzo" placeholder="Indirizzo" required>
   <input type="text" name="citta" placeholder="Città" required>
   <input type="text" name="comune" placeholder="Comune" required>
   <input type="text" name="cap" placeholder="CAP" required>
 
+  <!-- Contatti -->
   <h3>Contatti</h3>
   <input type="email" name="email" placeholder="Email" required>
   <input type="text" name="telefono" placeholder="Telefono">
 
+  <!-- Credenziali -->
   <h3>Credenziali</h3>
   <input type="text" name="username" placeholder="Username" required>
   <input type="password" name="password" placeholder="Password" required>
@@ -28,7 +32,7 @@
   <div style="margin-top:10px;">
     <label>
       <input type="checkbox" name="consenso_privacy" required>
-      Acconsento al trattamento dei dati ai sensi del <strong>D.Lgs. 196/2003</strong> e del <strong>Regolamento (UE) 2016/679 - GDPR</strong>.
+      Acconsento al trattamento dei dati ai sensi del GDPR.
     </label>
   </div>
 
