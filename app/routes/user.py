@@ -82,7 +82,7 @@ def register():
                     "telefono": telefono,
                     "username": username,
                     "password_hash": password_hash,
-                    "consenso": int(consenso)
+                    "consenso": consenso
                 }
             )
             db.commit()
