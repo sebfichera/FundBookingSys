@@ -4,6 +4,8 @@ from email.message import EmailMessage
 from werkzeug.security import generate_password_hash, check_password_hash
 import threading
 
+ASYNC_EMAIL = os.environ.get("ASYNC_EMAIL", "true").lower() == "true"
+
 # -------------------
 # Password utilities
 # -------------------
@@ -62,4 +64,9 @@ def send_email(to_email, subject, body):
 
 # ----------------- Wrapper asincrono -----------------
 def send_email_async(to_email, subject, body):
-    threading.Thread(target=send_email, args=(to_email, subject, body)).start()
+    if ASYNC_EMAIL:
+        threading.Thread(target=send_email, args=(to_email, subject, body)).start()
+        print(f"📨 Invio asincrono a {to_email}")
+    else:
+        send_email(to_email,subject,body)
+        print(f"📨 Invio sincrono a {to_email}")
