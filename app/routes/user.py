@@ -4,6 +4,9 @@ from ..models import db
 from ..utils import hash_password, verify_password, send_email_async
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import text
+import secrets
+import traceback
+from datetime import datetime, timedelta, timezone
 
 user_bp = Blueprint("user_bp", __name__)
 
@@ -156,3 +159,126 @@ def user_logout():
     session.pop("user_status", None)
     flash("Logout effettuato.")
     return redirect(url_for("user_bp.home"))
+
+# ----------------- RECUPERO USERNAME UTENTE -----------------
+@user_bp.route("/recover_username", methods=["GET", "POST"])
+def recover_username():
+    if request.method == "POST":
+        email = request.form["email"].strip().lower()
+        user = db.execute(text("SELECT username FROM utenti WHERE email=:email"), {"email": email}).fetchone()
+
+        if not user:
+            flash("Nessun utente trovato con questa email.")
+            return redirect(url_for("user_bp.recover_username"))
+
+        # Invio mail
+        send_email_async(
+            email,
+            "Recupero username",
+            f"Ciao! Il tuo username è: {user.username}"
+        )
+        flash("✅ Ti abbiamo inviato una mail con il tuo username.")
+        return redirect(url_for("user_bp.user_login"))
+
+    return render_template("recover_username.html")
+
+# ----------------- RESET PASSWORD UTENTE (GENERA TOKEN) -----------------
+@user_bp.route("/recover_password", methods=["GET", "POST"])
+def recover_password():
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        try:
+            user = db.execute(
+                text("SELECT id, username, email FROM utenti WHERE email = :email"),
+                {"email": email}
+            ).fetchone()
+
+            if not user:
+                flash("Nessun account trovato con questa email.")
+                return redirect(url_for("user_bp.recover_password"))
+
+            # genera token + scadenza (1 ora)
+            token = secrets.token_urlsafe(32)
+            expiry = datetime.now(timezone.utc) + timedelta(hours=1)
+
+            # salva nel DB
+            db.execute(
+                text("UPDATE utenti SET reset_token = :token, reset_token_expiry = :expiry WHERE id = :id"),
+                {"token": token, "expiry": expiry, "id": user.id}
+            )
+            db.commit()
+
+            # link assoluto
+            reset_link = url_for("user_bp.reset_password", token=token, _external=True)
+
+            # invio mail (non deve far fallire la route)
+            try:
+                send_email_async(
+                    user.email,
+                    "Reimposta la tua password",
+                    f"Ciao {user.username},\n\nPer reimpostare la password clicca qui:\n{reset_link}\n\nIl link scade tra 1 ora."
+                )
+            except Exception as e:
+                print("❌ Errore invio mail (recover_password):", e)
+                traceback.print_exc()  # utile per debug, controlla i log
+
+            flash("Se l'email esiste, abbiamo inviato il link per reimpostare la password.")
+            return redirect(url_for("user_bp.user_login"))
+
+        except Exception as e:
+            print("❌ Errore in recover_password:", e)
+            traceback.print_exc()
+            flash("Si è verificato un errore. Controlla i log.")
+            return redirect(url_for("user_bp.recover_password"))
+
+    return render_template("recover_password.html")
+
+# ----------------- RESET PASSWORD UTENTE (CREA NUOVA PASSWORD) -----------------
+@user_bp.route("/reset_password/<token>", methods=["GET", "POST"])
+def reset_password(token):
+    try:
+        user = db.execute(
+            text("SELECT id, reset_token_expiry FROM utenti WHERE reset_token = :token"),
+            {"token": token}
+        ).fetchone()
+
+        if not user:
+            flash("Token non valido o già usato.")
+            return redirect(url_for("user_bp.recover_password"))
+
+        expiry = user.reset_token_expiry
+        now = datetime.now(timezone.utc)
+
+        # gestione naive/aware
+        if expiry is None:
+            flash("Token non valido.")
+            return redirect(url_for("user_bp.recover_password"))
+        if expiry.tzinfo is None:
+            expiry = expiry.replace(tzinfo=timezone.utc)
+
+        if now > expiry:
+            flash("Il link per reimpostare la password è scaduto.")
+            return redirect(url_for("user_bp.recover_password"))
+
+        if request.method == "POST":
+            new_pw = request.form.get("password", "")
+            if len(new_pw) < 6:
+                flash("La password deve essere lunga almeno 6 caratteri.")
+                return redirect(url_for("user_bp.reset_password", token=token))
+
+            pw_hash = hash_password(new_pw)
+            db.execute(
+                text("UPDATE utenti SET password_hash = :pw, reset_token = NULL, reset_token_expiry = NULL WHERE id = :id"),
+                {"pw": pw_hash, "id": user.id}
+            )
+            db.commit()
+            flash("✅ Password aggiornata. Ora puoi effettuare il login.")
+            return redirect(url_for("user_bp.user_login"))
+
+        return render_template("reset_password.html", token=token)
+
+    except Exception as e:
+        print("❌ Errore in reset_password:", e)
+        traceback.print_exc()
+        flash("Si è verificato un errore. Controlla i log.")
+        return redirect(url_for("user_bp.recover_password"))

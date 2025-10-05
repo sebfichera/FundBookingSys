@@ -10,4 +10,7 @@
   <button type="submit">Login</button>
 </form>
 <p>Non hai un account? <a href="{{ url_for('user_bp.register') }}">Registrati</a></p>
+<p><a href="{{ url_for('user_bp.recover_username') }}">Hai dimenticato lo username?</a></p>
+<p><a href="{{ url_for('user_bp.recover_password') }}">Hai dimenticato la password?</a></p>
+
 {% endblock %}

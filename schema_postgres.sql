@@ -23,6 +23,9 @@ CREATE TABLE IF NOT EXISTS utenti (
     password_hash TEXT NOT NULL,
     consenso_privacy BOOLEAN NOT NULL,
     stato TEXT NOT NULL DEFAULT 'pending' -- pending | attivo | sospeso
+    -- Campi aggiuntivi per il recupero password
+    reset_token TEXT,              -- token temporaneo inviato via email
+    reset_token_expiry TIMESTAMP   -- data/ora di scadenza del token
 );
 
 -- PRENOTAZIONI
