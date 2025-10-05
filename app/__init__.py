@@ -3,10 +3,13 @@ from flask import Flask
 from sqlalchemy import create_engine
 from sqlalchemy.orm import scoped_session, sessionmaker
 from flask import Flask, redirect, url_for
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def create_app():
     app = Flask(__name__)
-    app.secret_key = "bjj_super_secret_key"
+    app.secret_key = os.environ.get("SECRET_KEY", "default_secret")
 
     # Config DB
     DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -31,5 +34,13 @@ def create_app():
     @app.route("/")
     def root():
         return redirect(url_for("user_bp.home"))
+    
+     # Gestore errori globale
+    @app.errorhandler(Exception)
+    def handle_exception(e):
+        import traceback
+        print("❌ Errore globale:", e)
+        traceback.print_exc()
+        return "Internal Server Error", 500
 
     return app
