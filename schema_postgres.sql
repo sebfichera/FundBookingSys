@@ -22,10 +22,11 @@ CREATE TABLE IF NOT EXISTS utenti (
     username TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
     consenso_privacy BOOLEAN NOT NULL,
-    stato TEXT NOT NULL DEFAULT 'pending' -- pending | attivo | sospeso
-    -- Campi aggiuntivi per il recupero password
-    reset_token TEXT,              -- token temporaneo inviato via email
-    reset_token_expiry TIMESTAMP   -- data/ora di scadenza del token
+    stato TEXT NOT NULL DEFAULT 'pending', -- pending | attivo | sospeso
+    reset_token TEXT,
+    reset_token_expiry TIMESTAMPTZ,
+    username_recovery_token TEXT,
+    username_recovery_expiry TIMESTAMPTZ
 );
 
 -- PRENOTAZIONI
@@ -40,5 +41,10 @@ CREATE TABLE IF NOT EXISTS prenotazioni (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_booking ON prenotazioni(user_id, classe_id);
 
 -- Esempi di lezioni
-INSERT INTO classi (data, ora, max_posti) VALUES ('2025-09-06', '19:00', 20);
-INSERT INTO classi (data, ora, max_posti) VALUES ('2025-09-07', '19:00', 15);
+INSERT INTO classi (data, ora, max_posti) VALUES ('2025-10-15', '19:00', 20);
+INSERT INTO classi (data, ora, max_posti) VALUES ('2025-10-17', '19:00', 15);
+
+-- Abilita Row Level Security
+ALTER TABLE utenti ENABLE ROW LEVEL SECURITY;
+ALTER TABLE classi ENABLE ROW LEVEL SECURITY;
+ALTER TABLE prenotazioni ENABLE ROW LEVEL SECURITY;

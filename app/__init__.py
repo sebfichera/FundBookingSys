@@ -15,7 +15,7 @@ def create_app():
     DATABASE_URL = os.environ.get("DATABASE_URL")
     if not DATABASE_URL:
         raise Exception("⚠️ DATABASE_URL non impostata!")
-    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+    engine = create_engine(DATABASE_URL, pool_pre_ping=True, connect_args={"sslmode": "require"})
 
     from . import models
     models.db = scoped_session(sessionmaker(bind=engine))

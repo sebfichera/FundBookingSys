@@ -12,3 +12,5 @@ zipp==3.23.0
 gunicorn==21.2.0
 psycopg2-binary
 sqlalchemy
+supabase
+python-dotenv
