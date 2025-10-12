@@ -3,14 +3,33 @@ from flask import Blueprint, render_template, request, redirect, url_for, sessio
 from ..models import db
 from ..utils import send_email_async
 from sqlalchemy import text
+from functools import wraps
+from sqlalchemy.exc import IntegrityError
 
 admin_bp = Blueprint("admin_bp", __name__, url_prefix="/admin")  # url_prefix per tutte le route admin
 
-MIN_ISCRITTI = 5  # minimo iscritti per classe
+MIN_ISCRITTI = 2  # minimo iscritti per classe
+
+# ----------------- DECORATOR DB SAFE -----------------
+def db_safe(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except IntegrityError as e:
+            db.rollback()
+            print("⚠️ IntegrityError:", e)
+            flash("Errore: dati già esistenti o non validi.")
+            return redirect(url_for("admin_bp.dashboard"))
+        except Exception as e:
+            db.rollback()
+            print("❌ Errore DB generico:", e)
+            flash("Si è verificato un errore. Riprova più tardi.")
+            return redirect(url_for("admin_bp.dashboard"))
+    return wrapper
 
 # ----------------- DECORATOR ADMIN -----------------
 def admin_required(f):
-    from functools import wraps
     @wraps(f)
     def wrapper(*args, **kwargs):
         if not session.get("admin"):
@@ -65,6 +84,7 @@ def dashboard():
 # ----------------- GESTIONE CLASSI -----------------
 @admin_bp.route("/add", methods=["POST"])
 @admin_required
+@db_safe
 def add_classe():
     data = request.form["data"]
     ora = request.form["ora"]
@@ -77,6 +97,7 @@ def add_classe():
 
 @admin_bp.route("/delete/<int:classe_id>")
 @admin_required
+@db_safe
 def delete_classe(classe_id):
     db.execute(text("DELETE FROM prenotazioni WHERE classe_id=:cid"), {"cid": classe_id})
     db.execute(text("DELETE FROM classi WHERE id=:cid"), {"cid": classe_id})
@@ -86,6 +107,7 @@ def delete_classe(classe_id):
 
 @admin_bp.route("/edit/<int:classe_id>", methods=["GET", "POST"])
 @admin_required
+@db_safe
 def edit_classe(classe_id):
     if request.method == "POST":
         data = request.form["data"]
@@ -116,6 +138,7 @@ def admin_users():
 
 @admin_bp.route("/users/<int:user_id>/approve")
 @admin_required
+@db_safe
 def admin_users_approve(user_id):
     db.execute(text("UPDATE utenti SET stato='attivo' WHERE id=:uid"), {"uid": user_id})
     db.commit()
@@ -131,6 +154,7 @@ def admin_users_approve(user_id):
 
 @admin_bp.route("/users/<int:user_id>/suspend")
 @admin_required
+@db_safe
 def admin_users_suspend(user_id):
     db.execute(text("UPDATE utenti SET stato='sospeso' WHERE id=:uid"), {"uid": user_id})
     db.commit()
@@ -139,6 +163,7 @@ def admin_users_suspend(user_id):
 
 @admin_bp.route("/users/<int:user_id>/delete")
 @admin_required
+@db_safe
 def admin_users_delete(user_id):
     db.execute(text("DELETE FROM prenotazioni WHERE user_id=:uid"), {"uid": user_id})
     db.execute(text("DELETE FROM utenti WHERE id=:uid"), {"uid": user_id})

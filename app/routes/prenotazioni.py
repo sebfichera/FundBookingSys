@@ -2,12 +2,30 @@ from flask import Blueprint, session, redirect, url_for, flash
 from ..models import db
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import text
+from functools import wraps
 
 prenotazioni_bp = Blueprint("prenotazioni_bp", __name__, url_prefix="/prenota")  # aggiunto url_prefix
 
+# ----------------- DECORATOR DB SAFE -----------------
+def db_safe(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except IntegrityError as e:
+            db.rollback()
+            print("⚠️ IntegrityError:", e)
+            flash("Errore: dati già esistenti o non validi.")
+            return redirect(url_for("user_bp.home"))
+        except Exception as e:
+            db.rollback()
+            print("❌ Errore DB generico:", e)
+            flash("Si è verificato un errore. Riprova più tardi.")
+            return redirect(url_for("user_bp.home"))
+    return wrapper
+
 # ----------------- DECORATOR LOGIN UTENTE -----------------
 def user_login_required(f):
-    from functools import wraps
     @wraps(f)
     def wrapper(*args, **kwargs):
         if not session.get("user_id"):
@@ -22,13 +40,16 @@ def user_login_required(f):
 # ----------------- PRENOTA CLASSE -----------------
 @prenotazioni_bp.route("/<int:classe_id>", methods=["POST"])
 @user_login_required
+@db_safe
 def prenota(classe_id):
     user_id = session["user_id"]
 
     # Verifica esistenza classe
     row = db.execute(
-        text("SELECT max_posti FROM classi WHERE id=:cid"), {"cid": classe_id}
-    ).fetchone()
+        text("SELECT max_posti FROM classi WHERE id=:cid"),
+        {"cid": classe_id}
+        ).fetchone()
+
     if not row:
         flash("Classe inesistente.")
         return redirect(url_for("user_bp.home"))
@@ -38,7 +59,7 @@ def prenota(classe_id):
     # Conta prenotazioni attuali
     count = db.execute(
         text("SELECT COUNT(*) AS n FROM prenotazioni WHERE classe_id=:cid"), {"cid": classe_id}
-    ).fetchone().n
+        ).fetchone().n
 
     if count >= max_posti:
         flash("Classe piena!")
@@ -48,21 +69,15 @@ def prenota(classe_id):
     already = db.execute(
         text("SELECT 1 FROM prenotazioni WHERE user_id=:uid AND classe_id=:cid"),
         {"uid": user_id, "cid": classe_id}
-    ).fetchone()
+        ).fetchone()
     if already:
         flash("Hai già una prenotazione per questa classe.")
         return redirect(url_for("user_bp.home"))
-
+    
     # Inserimento prenotazione
-    try:
-        db.execute(
-            text("INSERT INTO prenotazioni (user_id, classe_id) VALUES (:uid,:cid)"),
+    db.execute(text("INSERT INTO prenotazioni (user_id, classe_id) VALUES (:uid,:cid)"),
             {"uid": user_id, "cid": classe_id}
-        )
-        db.commit()
-        flash("✅ Prenotazione effettuata!")
-    except IntegrityError:
-        db.rollback()
-        flash("Errore: prenotazione già esistente o dati non validi.")
-
+            )
+    db.commit()
+    flash("✅ Prenotazione effettuata!")
     return redirect(url_for("user_bp.home"))

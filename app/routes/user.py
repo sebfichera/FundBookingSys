@@ -2,16 +2,38 @@ import os
 from flask import Blueprint, render_template, request, redirect, session, url_for, flash
 from ..models import db
 from ..utils import hash_password, verify_password, send_email_async
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy import text
 import secrets
 import traceback
 from datetime import datetime, timedelta, timezone
+from . import db
+from functools import wraps
 
 user_bp = Blueprint("user_bp", __name__)
 
+# ----------------- DECORATORE GESTIONE ERRORI DB -----------------
+def handle_db_errors(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except SQLAlchemyError as e:
+            db.rollback()
+            print("❌ Errore DB:", e)
+            traceback.print_exc()
+            flash("⚠️ Problema di connessione al database. Riprova più tardi.", "danger")
+            return redirect(url_for("user_bp.home"))
+        except Exception as e:
+            print("❌ Errore generico:", e)
+            traceback.print_exc()
+            flash("Si è verificato un errore. Controlla i log.", "danger")
+            return redirect(url_for("user_bp.home"))
+    return wrapper
+
 # ----------------- HOME -----------------
 @user_bp.route("/")
+@handle_db_errors
 def home():
     print("🚀 Home route chiamata")
     classi = db.execute(text("SELECT * FROM classi ORDER BY data ASC, ora ASC")).fetchall()
@@ -32,6 +54,7 @@ def home():
 
 # ----------------- REGISTRAZIONE -----------------
 @user_bp.route("/user/register", methods=["GET", "POST"])
+@handle_db_errors
 def register():
     if request.method == "POST":
 
@@ -125,6 +148,7 @@ def register():
 
 # ----------------- LOGIN UTENTE -----------------
 @user_bp.route("/user/login", methods=["GET", "POST"])
+@handle_db_errors
 def user_login():
     if request.method == "POST":
         username = request.form["username"].strip()
@@ -162,6 +186,7 @@ def user_logout():
 
 # ----------------- RECUPERO USERNAME UTENTE -----------------
 @user_bp.route("/recover_username", methods=["GET", "POST"])
+@handle_db_errors
 def recover_username():
     if request.method == "POST":
         email = request.form["email"].strip().lower()
@@ -184,6 +209,7 @@ def recover_username():
 
 # ----------------- RESET PASSWORD UTENTE (GENERA TOKEN) -----------------
 @user_bp.route("/recover_password", methods=["GET", "POST"])
+@handle_db_errors
 def recover_password():
     if request.method == "POST":
         email = request.form.get("email", "").strip().lower()
@@ -235,6 +261,7 @@ def recover_password():
 
 # ----------------- RESET PASSWORD UTENTE (CREA NUOVA PASSWORD) -----------------
 @user_bp.route("/reset_password/<token>", methods=["GET", "POST"])
+@handle_db_errors
 def reset_password(token):
     try:
         user = db.execute(
