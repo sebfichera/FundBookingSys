@@ -15,7 +15,19 @@ def create_app():
     DATABASE_URL = os.environ.get("DATABASE_URL")
     if not DATABASE_URL:
         raise Exception("⚠️ DATABASE_URL non impostata!")
-    engine = create_engine(DATABASE_URL, pool_pre_ping=True, connect_args={"sslmode": "require"})
+    
+    if "sslmode" not in DATABASE_URL:
+        if "?" in DATABASE_URL:
+            DATABASE_URL += "&sslmode=require"
+        else:
+            DATABASE_URL += "?sslmode=require"
+
+    try:
+        engine = create_engine(DATABASE_URL, pool_pre_ping=True, connect_args={"sslmode": "require"})
+    except Exception as e:
+        print("❌ Errore nella connessione al database Supabase:")
+        print(e)
+        raise
 
     from . import models
     models.db = scoped_session(sessionmaker(bind=engine))
