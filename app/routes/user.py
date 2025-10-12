@@ -7,7 +7,6 @@ from sqlalchemy import text
 import secrets
 import traceback
 from datetime import datetime, timedelta, timezone
-from . import db
 from functools import wraps
 
 user_bp = Blueprint("user_bp", __name__)
