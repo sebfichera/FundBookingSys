@@ -9,7 +9,7 @@ import traceback
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 
-user_bp = Blueprint("user_bp", __name__)
+user_bp = Blueprint("user_bp", __name__, url_prefix="/user")
 
 # ----------------- DECORATORE GESTIONE ERRORI DB -----------------
 def handle_db_errors(f):
@@ -19,12 +19,16 @@ def handle_db_errors(f):
             return f(*args, **kwargs)
         except SQLAlchemyError as e:
             db.rollback()
-            print("❌ Errore DB:", e)
+            print(f"❌ Errore DB in {f.__name__}: {str(e)}")
+            print(f"   Route corrente: {request.path}")
+            if request.path == "/user/register":
+                flash("Si è verificato un errore durante la registrazione. Riprova.")
+                return redirect(url_for("user_bp.login"))  # o home, come preferisci
             traceback.print_exc()
             flash("⚠️ Problema di connessione al database. Riprova più tardi.", "danger")
             return redirect(url_for("user_bp.home"))
         except Exception as e:
-            print("❌ Errore generico:", e)
+            print("❌ Errore generico in {f.__name__}: {str(e)}")
             traceback.print_exc()
             flash("Si è verificato un errore. Controlla i log.", "danger")
             return redirect(url_for("user_bp.home"))
@@ -52,9 +56,10 @@ def home():
     )
 
 # ----------------- REGISTRAZIONE -----------------
-@user_bp.route("/user/register", methods=["GET", "POST"])
+@user_bp.route("/register", methods=["GET", "POST"])
 @handle_db_errors
 def register():
+    print("✅ Register route chiamata", request.method)
     if request.method == "POST":
 
         print("💡 Inizio registrazione")  # debug iniziale
@@ -114,7 +119,7 @@ def register():
 
             print("💡 Utente inserito nel DB")
 
-        except IntegrityError:
+        except IntegrityError as e:
             db.rollback()
 
             print("⚠️ IntegrityError:", e)
@@ -146,7 +151,7 @@ def register():
     return render_template("register.html")
 
 # ----------------- LOGIN UTENTE -----------------
-@user_bp.route("/user/login", methods=["GET", "POST"])
+@user_bp.route("/login", methods=["GET", "POST"])
 @handle_db_errors
 def user_login():
     if request.method == "POST":
@@ -175,7 +180,7 @@ def user_login():
     return render_template("user_login.html")
 
 # ----------------- LOGOUT UTENTE -----------------
-@user_bp.route("/user/logout")
+@user_bp.route("/logout")
 def user_logout():
     session.pop("user_id", None)
     session.pop("username", None)
