@@ -8,8 +8,11 @@ import secrets
 import traceback
 from datetime import datetime, timedelta, timezone
 from functools import wraps
+from supabase import create_client
 
 user_bp = Blueprint("user_bp", __name__, url_prefix="/user")
+
+supabase=create_client(os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_KEY"))
 
 # ----------------- DECORATORE GESTIONE ERRORI DB -----------------
 def handle_db_errors(f):
@@ -85,21 +88,34 @@ def register():
             return redirect(url_for("user_bp.register"))
 
         password_hash = hash_password(password)
-
         print("💡 Password hash generata")
 
         try:
+            # 1️⃣ Crea utente su Supabase Auth
+            auth_response = supabase.auth.sign_up({
+                "email": email,
+                "password": password
+            })
+
+            if auth_response.user is None:
+                flash("Errore durante la creazione dell'utente Auth")
+                return redirect(url_for("user.register"))
+
+            user_id = auth_response.user.id  # ID generato da Supabase
+            print("💡 ID generato su Supabase")
+
             db.execute(
                 text("""
                     INSERT INTO utenti (
-                        nome, cognome, data_nascita, luogo_nascita, indirizzo, citta, comune, cap,
+                        id, nome, cognome, data_nascita, luogo_nascita, indirizzo, citta, comune, cap,
                         email, telefono, username, password_hash, consenso_privacy, stato
                     ) VALUES (
-                        :nome, :cognome, :data_nascita, :luogo_nascita, :indirizzo, :citta, :comune, :cap,
+                        :id, :nome, :cognome, :data_nascita, :luogo_nascita, :indirizzo, :citta, :comune, :cap,
                         :email, :telefono, :username, :password_hash, :consenso_privacy, 'pending'
                     )
                 """),
                 {
+                    "id":user_id,
                     "nome": nome,
                     "cognome": cognome,
                     "data_nascita": data_nascita,
@@ -119,13 +135,6 @@ def register():
 
             print("💡 Utente inserito nel DB")
 
-        except IntegrityError as e:
-            db.rollback()
-
-            print("⚠️ IntegrityError:", e)
-
-            flash("Email o username già esistenti.") 
-            return redirect(url_for("user_bp.register"))
         except Exception as e:
             db.rollback()
             print("❌ Errore generico durante registrazione:", e)

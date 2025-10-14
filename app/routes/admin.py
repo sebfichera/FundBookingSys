@@ -5,8 +5,12 @@ from ..utils import send_email_async
 from sqlalchemy import text
 from functools import wraps
 from sqlalchemy.exc import IntegrityError
+from supabase import create_client
+import traceback
 
 admin_bp = Blueprint("admin_bp", __name__, url_prefix="/admin")  # url_prefix per tutte le route admin
+
+supabase_admin=create_client(os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_SERVICE_KEY"))
 
 MIN_ISCRITTI = 2  # minimo iscritti per classe
 
@@ -19,11 +23,13 @@ def db_safe(f):
         except IntegrityError as e:
             db.rollback()
             print("⚠️ IntegrityError:", e)
+            traceback.print_exc()
             flash("Errore: dati già esistenti o non validi.")
             return redirect(url_for("admin_bp.dashboard"))
         except Exception as e:
             db.rollback()
             print("❌ Errore DB generico:", e)
+            traceback.print_exc()
             flash("Si è verificato un errore. Riprova più tardi.")
             return redirect(url_for("admin_bp.dashboard"))
     return wrapper
@@ -125,6 +131,16 @@ def edit_classe(classe_id):
     return render_template("edit_classe.html", classe=classe)
 
 # ----------------- GESTIONE UTENTI -----------------
+import uuid
+
+def validate_uuid4(uuid_string):
+    """Verifica se la stringa è un UUID valido (versione 4)."""
+    try:
+        u = uuid.UUID(uuid_string, version=4)
+        return u
+    except ValueError:
+        return None
+
 @admin_bp.route("/users")
 @admin_required
 def admin_users():
@@ -136,13 +152,17 @@ def admin_users():
     """)).fetchall()
     return render_template("admin_users.html", users=users)
 
-@admin_bp.route("/users/<int:user_id>/approve")
+@admin_bp.route("/users/<user_id>/approve")
 @admin_required
 @db_safe
 def admin_users_approve(user_id):
-    db.execute(text("UPDATE utenti SET stato='attivo' WHERE id=:uid"), {"uid": user_id})
+    if not validate_uuid4(user_id):
+        flash("❌ ID utente non valido")
+        return redirect(url_for("admin_bp.admin_users"))
+    db.execute(text("UPDATE utenti SET stato='attivo' WHERE id=:uid"), {"uid": str(validate_uuid4(user_id))})
     db.commit()
-    user = db.execute(text("SELECT nome,cognome,email,username FROM utenti WHERE id=:uid"), {"uid": user_id}).fetchone()
+    supabase_admin.auth.admin.update_user_by_id(str(validate_uuid4(user_id)), {"email_confirmed": True})
+    user = db.execute(text("SELECT nome,cognome,email,username FROM utenti WHERE id=:uid"), {"uid": str(validate_uuid4(user_id))}).fetchone()
     if user and user.email:
         send_email_async(
             user.email,
@@ -152,22 +172,30 @@ def admin_users_approve(user_id):
     flash("✅ Utente approvato e notifica inviata via mail.")
     return redirect(url_for("admin_bp.admin_users"))
 
-@admin_bp.route("/users/<int:user_id>/suspend")
+@admin_bp.route("/users/<user_id>/suspend")
 @admin_required
 @db_safe
 def admin_users_suspend(user_id):
-    db.execute(text("UPDATE utenti SET stato='sospeso' WHERE id=:uid"), {"uid": user_id})
+    if not validate_uuid4(user_id):
+        flash("❌ ID utente non valido")
+        return redirect(url_for("admin_bp.admin_users"))    
+    db.execute(text("UPDATE utenti SET stato='sospeso' WHERE id=:uid"), {"uid": str(validate_uuid4(user_id))})
     db.commit()
+    supabase_admin.auth.admin.update_user_by_id(str(validate_uuid4(user_id)), {"disabled": True})
     flash("⏸️ Utente sospeso.")
     return redirect(url_for("admin_bp.admin_users"))
 
-@admin_bp.route("/users/<int:user_id>/delete")
+@admin_bp.route("/users/<user_id>/delete")
 @admin_required
 @db_safe
 def admin_users_delete(user_id):
-    db.execute(text("DELETE FROM prenotazioni WHERE user_id=:uid"), {"uid": user_id})
-    db.execute(text("DELETE FROM utenti WHERE id=:uid"), {"uid": user_id})
+    if not validate_uuid4(user_id):
+        flash("❌ ID utente non valido")
+        return redirect(url_for("admin_bp.admin_users"))    
+    db.execute(text("DELETE FROM prenotazioni WHERE user_id=:uid"), {"uid": str(validate_uuid4(user_id))})
+    db.execute(text("DELETE FROM utenti WHERE id=:uid"), {"uid": str(validate_uuid4(user_id))})
     db.commit()
+    supabase_admin.auth.admin.delete_user(str(validate_uuid4(user_id)))
     flash("🗑️ Utente eliminato (e prenotazioni rimosse).")
     return redirect(url_for("admin_bp.admin_users"))
 
