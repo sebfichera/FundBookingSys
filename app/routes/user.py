@@ -76,11 +76,11 @@ def register():
         telefono = request.form["telefono"].strip()
         username = request.form["username"].strip()
         password = request.form["password"]
-        consenso = request.form.get("consenso_privacy") == "on"
+        consenso_privacy = request.form.get("consenso_privacy") == "on"
 
-        print("💡 Dati letti:", nome, cognome, email, username, consenso)
+        print("💡 Dati letti:", nome, cognome, email, username, consenso_privacy)
 
-        if not consenso:
+        if not consenso_privacy:
             flash("Devi acconsentire al trattamento dei dati per proseguire.")
             return redirect(url_for("user_bp.register"))
 
@@ -96,7 +96,7 @@ def register():
                         email, telefono, username, password_hash, consenso_privacy, stato
                     ) VALUES (
                         :nome, :cognome, :data_nascita, :luogo_nascita, :indirizzo, :citta, :comune, :cap,
-                        :email, :telefono, :username, :password_hash, :consenso, 'pending'
+                        :email, :telefono, :username, :password_hash, :consenso_privacy, 'pending'
                     )
                 """),
                 {
@@ -112,7 +112,7 @@ def register():
                     "telefono": telefono,
                     "username": username,
                     "password_hash": password_hash,
-                    "consenso": consenso
+                    "consenso_privacy": consenso_privacy
                 }
             )
             db.commit()
